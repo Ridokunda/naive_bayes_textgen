@@ -1,26 +1,27 @@
 import pandas as pd
-from utils.preprocessing import preprocess_text, tokenize
+from utilities.preprocessing import preprocess_text, tokenize
 from models.naive_bayes import NaiveBayesClassifier
+from models.generator import NaiveBayesTextGenerator
 
-def load_data(train_file, test_file):
-    """
-    Loads train and test datasets.
-    Assumes CSV with columns: [review, label]
-    """
-    train_df = pd.read_csv(train_file)
-    test_df = pd.read_csv(test_file)
+def load_data(full_file, train_ratio=0.8):
+    df = pd.read_csv(full_file)
+    df = df.sample(frac=1, random_state=42).reset_index(drop=True)
+
+    train_size = int(len(df) * train_ratio)
+    train_df = df.iloc[:train_size]
+    test_df = df.iloc[train_size:]
 
     X_train = [tokenize(preprocess_text(text)) for text in train_df["review"]]
-    y_train = train_df["label"].tolist()
+    y_train = train_df["sentiment"].tolist()
 
     X_test = [tokenize(preprocess_text(text)) for text in test_df["review"]]
-    y_test = test_df["label"].tolist()
+    y_test = test_df["sentiment"].tolist()
 
     return X_train, y_train, X_test, y_test
 
 def main():
-    # Load dataset
-    X_train, y_train, X_test, y_test = load_data("data/imdb_train.csv", "data/imdb_test.csv")
+    dataset_file = "data/IMDB Dataset.csv"
+    X_train, y_train, X_test, y_test = load_data(dataset_file)
 
     # Train NB classifier
     nb = NaiveBayesClassifier(alpha=1.0)
@@ -30,12 +31,21 @@ def main():
     acc = nb.score(X_test, y_test)
     print(f"Test Accuracy: {acc:.4f}")
 
-    # Try classifying a new sentence
-    sample = "I really loved this movie, it was amazing!"
-    processed = tokenize(preprocess_text(sample))
-    prediction = nb.predict(processed)
-    print(f"Sample: {sample}")
-    print(f"Predicted Sentiment: {prediction}")
+    # Generator
+    generator = NaiveBayesTextGenerator(nb)
+    generator._build_bigrams(X_train, y_train)
+
+    print("\nGenerated Positive Review (Unigram):")
+    print(generator.generate_unigram("positive", length=20))
+
+    print("\nGenerated Negative Review (Unigram):")
+    print(generator.generate_unigram("negative", length=20))
+
+    print("\nGenerated Positive Review (Bigram):")
+    print(generator.generate_bigram("positive", length=20))
+
+    print("\nGenerated Negative Review (Bigram):")
+    print(generator.generate_bigram("negative", length=20))
 
 if __name__ == "__main__":
     main()
